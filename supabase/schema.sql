@@ -160,6 +160,15 @@ create table if not exists public.partnerships (
   updated_at timestamptz not null default now()
 );
 
+-- ── grants: PostgREST checks these BEFORE evaluating RLS policies ───────────
+-- (Supabase's table editor does this automatically for new tables; the SQL
+-- editor does not, so it must be done explicitly here.)
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on public.profiles to anon, authenticated;
+grant select, insert, update, delete on public.customers, public.posts, public.newsletters,
+  public.reviews, public.promotions, public.ad_campaigns, public.partnerships
+  to anon, authenticated;
+
 -- ── RLS: enable + per-user policies for every business table ────────────────
 do $$
 declare
