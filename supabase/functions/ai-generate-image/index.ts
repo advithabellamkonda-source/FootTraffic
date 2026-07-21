@@ -10,7 +10,9 @@ const BUCKET = "post-images";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type",
+  // supabase-js appends its own headers (e.g. x-client-info) to every call —
+  // allow whatever the browser's preflight actually asks for, not a fixed list.
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
 };
 
 Deno.serve(async (req) => {
