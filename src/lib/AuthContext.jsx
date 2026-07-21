@@ -32,6 +32,11 @@ export const AuthProvider = ({ children }) => {
       if (event === 'PASSWORD_RECOVERY') {
         window.location.hash = '/reset-password';
       }
+      // OAuth (Google) redirects back with tokens in the URL hash, which briefly
+      // collides with HashRouter's own routing — clean it up once the session lands.
+      if (event === 'SIGNED_IN' && window.location.hash.includes('access_token')) {
+        window.location.hash = '/';
+      }
     });
 
     return () => {
