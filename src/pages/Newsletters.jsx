@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Newsletter } from '@/api/entities';
+import { invokeLLM } from '@/api/ai';
 import { MobileSheetSelect } from '@/components/MobileSheetSelect';
 import { Mail, Sparkles, Trash2, Plus } from 'lucide-react';
-import { PageHeader, EmptyState, LoadingSpinner, StatusBadge } from '@/components/shared';
+import { PageHeader, EmptyState, LoadingSpinner, StatusBadge, AILoading } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,6 +16,7 @@ import { useToast } from '@/components/ui/use-toast';
 export default function Newsletters() {
   const [newsletters, setNewsletters] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [aiLoading, setAiLoading] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const isAIDialogOpen = searchParams.get('action') === 'ai';
   const isEditDialogOpen = searchParams.get('action') === 'add' || !!searchParams.get('edit');
@@ -36,11 +38,32 @@ export default function Newsletters() {
     setLoading(false);
   }
 
-  function generateWithAI() {
-    toast({
-      title: 'AI generation coming soon',
-      description: 'Connect an LLM API key via a Supabase Edge Function to enable AI-written newsletters. For now, use "Write" to draft one manually.',
-    });
+  async function generateWithAI() {
+    setAiLoading(true);
+    try {
+      const result = await invokeLLM({
+        prompt: `You are an email marketing expert for a small local business. Write an engaging email newsletter about: "${aiTopic}". Include a compelling subject line, warm greeting, well-structured content with paragraphs, and a clear call to action. Make it personal and authentic.`,
+        jsonSchema: {
+          type: 'object',
+          properties: { subject: { type: 'string' }, content: { type: 'string' } },
+          required: ['subject', 'content'],
+        },
+      });
+
+      const newsletter = await Newsletter.create({
+        ...result,
+        status: 'Draft',
+        ai_generated: true,
+      });
+
+      setNewsletters((prev) => [newsletter, ...prev]);
+      setSearchParams({}, { replace: true });
+      setAiTopic('');
+      toast({ title: 'Newsletter generated!', description: 'AI wrote your email. Review and send when ready.' });
+    } catch (e) {
+      toast({ title: 'Generation failed', description: e.message, variant: 'destructive' });
+    }
+    setAiLoading(false);
   }
 
   function openAdd() {
@@ -88,7 +111,7 @@ export default function Newsletters() {
 
   return (
     <div>
-      <PageHeader title="Email Newsletters" description="Write and track email campaigns that keep customers coming back.">
+      <PageHeader title="Email Newsletters" description="AI-written email campaigns that keep customers coming back.">
         <Button onClick={() => setSearchParams({ action: 'ai' })} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
           <Sparkles className="w-4 h-4" /> Generate with AI
         </Button>
@@ -98,9 +121,9 @@ export default function Newsletters() {
       </PageHeader>
 
       {newsletters.length === 0 ? (
-        <EmptyState icon={Mail} title="No newsletters yet" description="Write your first email newsletter to get started.">
-          <Button onClick={openAdd} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
-            <Plus className="w-4 h-4" /> Write
+        <EmptyState icon={Mail} title="No newsletters yet" description="Let AI write your first email newsletter — just tell us the topic.">
+          <Button onClick={() => setSearchParams({ action: 'ai' })} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
+            <Sparkles className="w-4 h-4" /> Generate with AI
           </Button>
         </EmptyState>
       ) : (
@@ -155,29 +178,35 @@ export default function Newsletters() {
 
       <Dialog open={isAIDialogOpen} onOpenChange={(open) => { if (!open) setSearchParams({}, { replace: true }); }}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-teal-600" /> Generate Newsletter with AI
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <Label>What's the newsletter about?</Label>
-              <Textarea
-                value={aiTopic}
-                onChange={(e) => setAiTopic(e.target.value)}
-                placeholder="e.g., Summer menu launch, customer appreciation month, holiday specials..."
-                className="mt-1.5"
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSearchParams({}, { replace: true })}>Cancel</Button>
-            <Button onClick={generateWithAI} disabled={!aiTopic.trim()} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
-              <Sparkles className="w-4 h-4" /> Generate
-            </Button>
-          </DialogFooter>
+          {aiLoading ? (
+            <AILoading message="Writing your newsletter..." />
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-teal-600" /> Generate Newsletter with AI
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div>
+                  <Label>What's the newsletter about?</Label>
+                  <Textarea
+                    value={aiTopic}
+                    onChange={(e) => setAiTopic(e.target.value)}
+                    placeholder="e.g., Summer menu launch, customer appreciation month, holiday specials..."
+                    className="mt-1.5"
+                    rows={3}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setSearchParams({}, { replace: true })}>Cancel</Button>
+                <Button onClick={generateWithAI} disabled={!aiTopic.trim()} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
+                  <Sparkles className="w-4 h-4" /> Generate
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

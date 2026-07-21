@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { AdCampaign } from '@/api/entities';
-import { DollarSign, TrendingUp, MousePointerClick, Target, Sparkles, Plus } from 'lucide-react';
+import { invokeLLM } from '@/api/ai';
+import { DollarSign, TrendingUp, MousePointerClick, Target, Sparkles, Plus, Clock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { PageHeader, LoadingSpinner, StatCard, EmptyState } from '@/components/shared';
+import { PageHeader, LoadingSpinner, StatCard, EmptyState, AILoading } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +16,8 @@ const PLATFORMS = ['Meta Ads', 'Google Ads', 'Instagram Ads', 'TikTok Ads'];
 export default function Analytics() {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [bestTimes, setBestTimes] = useState(null);
   const [showDialog, setShowDialog] = useState(false);
   const [formData, setFormData] = useState({ campaign_name: '', platform: 'Meta Ads', spend: 0, revenue: 0, impressions: 0, clicks: 0, conversions: 0, status: 'Active' });
   const { toast } = useToast();
@@ -32,11 +35,34 @@ export default function Analytics() {
     setLoading(false);
   }
 
-  function suggestBestTimes() {
-    toast({
-      title: 'AI insights coming soon',
-      description: 'Connect an LLM API key via a Supabase Edge Function to enable AI-suggested best posting times.',
-    });
+  async function suggestBestTimes() {
+    setAiLoading(true);
+    try {
+      const result = await invokeLLM({
+        prompt: `Based on current social media engagement data and best practices for small local businesses, what are the best times to post on Instagram? Consider day of week, time of day, and audience behavior.`,
+        jsonSchema: {
+          type: 'object',
+          properties: {
+            best_times: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: { day: { type: 'string' }, time: { type: 'string' }, reason: { type: 'string' } },
+                required: ['day', 'time', 'reason'],
+              },
+            },
+            tips: { type: 'array', items: { type: 'string' } },
+          },
+          required: ['best_times', 'tips'],
+        },
+        grounding: true,
+      });
+      setBestTimes(result);
+      toast({ title: 'Best times analyzed!' });
+    } catch (e) {
+      toast({ title: 'Failed', description: e.message, variant: 'destructive' });
+    }
+    setAiLoading(false);
   }
 
   async function saveCampaign() {
@@ -98,6 +124,43 @@ export default function Analytics() {
               <Bar dataKey="revenue" fill="#0d9488" radius={[4, 4, 0, 0]} name="Revenue ($)" />
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {aiLoading && (
+        <div className="bg-white rounded-2xl border border-stone-200/80 mb-6">
+          <AILoading message="Analyzing best posting times..." />
+        </div>
+      )}
+
+      {bestTimes && !aiLoading && (
+        <div className="bg-white rounded-2xl border border-stone-200/80 p-5 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Clock className="w-5 h-5 text-teal-600" />
+            <h3 className="font-semibold text-stone-900">Best Times to Post</h3>
+            <span className="bg-teal-50 text-teal-600 text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+              <Sparkles className="w-2.5 h-2.5" /> AI
+            </span>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+            {bestTimes.best_times?.map((bt, i) => (
+              <div key={i} className="bg-stone-50 rounded-xl p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-semibold text-stone-900">{bt.day}</span>
+                  <span className="text-xs text-teal-600 font-medium">{bt.time}</span>
+                </div>
+                <p className="text-xs text-stone-500">{bt.reason}</p>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-2">
+            {bestTimes.tips?.map((tip, i) => (
+              <div key={i} className="flex items-start gap-2 text-sm text-stone-600">
+                <span className="w-5 h-5 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center text-xs font-semibold flex-shrink-0 mt-0.5">{i + 1}</span>
+                {tip}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

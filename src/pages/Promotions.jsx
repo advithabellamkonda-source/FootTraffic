@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Promotion } from '@/api/entities';
+import { invokeLLM } from '@/api/ai';
 import { MobileSheetSelect } from '@/components/MobileSheetSelect';
 import { Plus, Tag, Trash2, Sparkles, TrendingUp, Users } from 'lucide-react';
-import { PageHeader, EmptyState, LoadingSpinner, StatusBadge } from '@/components/shared';
+import { PageHeader, EmptyState, LoadingSpinner, StatusBadge, AILoading } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,6 +18,7 @@ const DISCOUNT_TYPES = ['Percentage', 'Fixed Amount', 'Buy One Get One', 'Free I
 export default function Promotions() {
   const [promos, setPromos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [aiLoading, setAiLoading] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const isDialogOpen = searchParams.get('action') === 'add' || !!searchParams.get('edit');
   const [editing, setEditing] = useState(null);
@@ -36,11 +38,37 @@ export default function Promotions() {
     setLoading(false);
   }
 
-  function suggestWithAI() {
-    toast({
-      title: 'AI generation coming soon',
-      description: 'Connect an LLM API key via a Supabase Edge Function to enable AI-suggested promotions. For now, use "Add" to create one manually.',
-    });
+  async function suggestWithAI() {
+    setAiLoading(true);
+    try {
+      const result = await invokeLLM({
+        prompt: `You are a marketing expert for a small local business. Based on current local neighborhood trends, seasonal events, and community happenings, suggest ONE compelling promotion that would drive foot traffic and customer loyalty. Consider what's trending locally and seasonally right now.`,
+        jsonSchema: {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            description: { type: 'string' },
+            discount_type: { type: 'string', enum: DISCOUNT_TYPES },
+            discount_value: { type: 'string' },
+            target_segment: { type: 'string' },
+          },
+          required: ['title', 'description', 'discount_type', 'discount_value'],
+        },
+        grounding: true,
+      });
+
+      const promo = await Promotion.create({
+        ...result,
+        status: 'Draft',
+        ai_generated: true,
+      });
+
+      setPromos((prev) => [promo, ...prev]);
+      toast({ title: 'Promotion suggested!', description: 'AI generated this based on local neighborhood trends.' });
+    } catch (e) {
+      toast({ title: 'Failed to generate', description: e.message, variant: 'destructive' });
+    }
+    setAiLoading(false);
   }
 
   function openAdd() {
@@ -85,7 +113,7 @@ export default function Promotions() {
 
   return (
     <div>
-      <PageHeader title="Promotions" description="Plan and track promotions to drive foot traffic and customer loyalty.">
+      <PageHeader title="Promotions" description="AI-suggested promotions based on local neighborhood trends and seasonal events.">
         <Button onClick={suggestWithAI} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
           <Sparkles className="w-4 h-4" /> Suggest with AI
         </Button>
@@ -94,10 +122,16 @@ export default function Promotions() {
         </Button>
       </PageHeader>
 
-      {promos.length === 0 ? (
-        <EmptyState icon={Tag} title="No promotions yet" description="Add your first promotion to start driving foot traffic.">
-          <Button onClick={openAdd} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
-            <Plus className="w-4 h-4" /> Add
+      {aiLoading && (
+        <div className="bg-white rounded-2xl border border-stone-200/80 mb-6">
+          <AILoading message="Analyzing local neighborhood trends..." />
+        </div>
+      )}
+
+      {promos.length === 0 && !aiLoading ? (
+        <EmptyState icon={Tag} title="No promotions yet" description="Let AI suggest promotions based on what's trending in your neighborhood.">
+          <Button onClick={suggestWithAI} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
+            <Sparkles className="w-4 h-4" /> Suggest with AI
           </Button>
         </EmptyState>
       ) : (

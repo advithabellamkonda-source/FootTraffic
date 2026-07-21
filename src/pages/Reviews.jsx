@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Review } from '@/api/entities';
-import { Star, Sparkles, MessageSquare, Plus } from 'lucide-react';
+import { invokeLLM } from '@/api/ai';
+import { Star, Sparkles, MessageSquare, Plus, RefreshCw } from 'lucide-react';
 import { MobileSheetSelect } from '@/components/MobileSheetSelect';
 import { PageHeader, EmptyState, LoadingSpinner, StatusBadge } from '@/components/shared';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ export default function Reviews() {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('Pending');
+  const [generatingId, setGeneratingId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
   const [addOpen, setAddOpen] = useState(false);
@@ -37,11 +39,20 @@ export default function Reviews() {
     setLoading(false);
   }
 
-  function generateResponse() {
-    toast({
-      title: 'AI generation coming soon',
-      description: 'Connect an LLM API key via a Supabase Edge Function to enable AI-written replies. For now, use "Write Response" to reply manually.',
-    });
+  async function generateResponse(review) {
+    setGeneratingId(review.id);
+    try {
+      const result = await invokeLLM({
+        prompt: `You are a small business owner responding to a customer review. Write a professional, warm, and personalized response.\n\nCustomer: ${review.customer_name}\nRating: ${review.rating}/5\nReview: ${review.content}\n\nGuidelines:\n- Thank them for their feedback\n- Address their specific points\n- Be warm and authentic (not robotic)\n- For positive reviews: express gratitude and invite them back\n- For negative reviews: apologize sincerely, address concerns, offer to make it right\n\nRespond with just the response text, ready to post.`,
+      });
+
+      await Review.update(review.id, { response: result, status: 'Responded' });
+      setReviews((prev) => prev.map((r) => (r.id === review.id ? { ...r, response: result, status: 'Responded' } : r)));
+      toast({ title: 'Response generated!', description: 'AI wrote a personalized reply. Review and edit if needed.' });
+    } catch (e) {
+      toast({ title: 'Failed to generate', description: e.message, variant: 'destructive' });
+    }
+    setGeneratingId(null);
   }
 
   function startEdit(review) {
@@ -71,7 +82,7 @@ export default function Reviews() {
 
   return (
     <div>
-      <PageHeader title="Reviews" description="Track customer reviews and respond quickly.">
+      <PageHeader title="Reviews" description="AI responds to customer reviews — warm, personalized, and fast.">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-white border border-stone-200 rounded-xl px-3 py-1.5">
             <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
@@ -151,15 +162,27 @@ export default function Reviews() {
                       <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => startEdit(review)}>
                         Edit response
                       </Button>
+                      <Button size="sm" variant="ghost" className="text-xs h-7 text-teal-600" onClick={() => generateResponse(review)} disabled={generatingId === review.id}>
+                        <RefreshCw className="w-3 h-3 mr-1" /> Regenerate
+                      </Button>
                     </div>
                   </div>
                 ) : (
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={() => startEdit(review)} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
-                      Write Response
+                    <Button
+                      size="sm"
+                      onClick={() => generateResponse(review)}
+                      disabled={generatingId === review.id}
+                      className="bg-teal-600 hover:bg-teal-700 text-white gap-2"
+                    >
+                      {generatingId === review.id ? (
+                        <><RefreshCw className="w-4 h-4 animate-spin" /> Generating...</>
+                      ) : (
+                        <><Sparkles className="w-4 h-4" /> Generate AI Response</>
+                      )}
                     </Button>
-                    <Button size="sm" variant="outline" onClick={generateResponse} className="gap-2">
-                      <Sparkles className="w-4 h-4" /> Generate with AI
+                    <Button size="sm" variant="outline" onClick={() => startEdit(review)}>
+                      Write Response
                     </Button>
                   </div>
                 )}

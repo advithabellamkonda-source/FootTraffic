@@ -32,3 +32,4 @@ dist-ssr
 
 # Local Claude Code session files
 .claude/
+supabase/.temp/

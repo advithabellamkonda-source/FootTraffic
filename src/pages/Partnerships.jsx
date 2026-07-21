@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Partnership } from '@/api/entities';
+import { invokeLLM } from '@/api/ai';
 import { Building2, Sparkles, Trash2, Plus } from 'lucide-react';
-import { PageHeader, EmptyState, LoadingSpinner } from '@/components/shared';
+import { PageHeader, EmptyState, LoadingSpinner, AILoading } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,6 +14,7 @@ import { useToast } from '@/components/ui/use-toast';
 export default function Partnerships() {
   const [partnerships, setPartnerships] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [aiLoading, setAiLoading] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [formData, setFormData] = useState({ partner_name: '', partner_type: '', mutual_benefit: '', notes: '' });
   const { toast } = useToast();
@@ -30,11 +32,41 @@ export default function Partnerships() {
     setLoading(false);
   }
 
-  function suggestWithAI() {
-    toast({
-      title: 'AI generation coming soon',
-      description: 'Connect an LLM API key via a Supabase Edge Function to enable AI-suggested partnerships. For now, use "Add" to create one manually.',
-    });
+  async function suggestWithAI() {
+    setAiLoading(true);
+    try {
+      const result = await invokeLLM({
+        prompt: `You are a business consultant for a small local business. Suggest 3 local business partnership opportunities. Consider complementary businesses that share a similar customer base and could create mutual value through cross-promotion, joint events, or bundled offers.`,
+        jsonSchema: {
+          type: 'object',
+          properties: {
+            partnerships: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  partner_name: { type: 'string' },
+                  partner_type: { type: 'string' },
+                  mutual_benefit: { type: 'string' },
+                },
+                required: ['partner_name', 'partner_type', 'mutual_benefit'],
+              },
+            },
+          },
+          required: ['partnerships'],
+        },
+        grounding: true,
+      });
+
+      const created = await Partnership.bulkCreate(
+        result.partnerships.map((p) => ({ ...p, suggested_by_ai: true, status: 'Suggested' }))
+      );
+      setPartnerships((prev) => [...created, ...prev]);
+      toast({ title: 'Partnerships suggested!', description: 'AI found complementary local businesses for you.' });
+    } catch (e) {
+      toast({ title: 'Failed', description: e.message, variant: 'destructive' });
+    }
+    setAiLoading(false);
   }
 
   async function save() {
@@ -59,7 +91,7 @@ export default function Partnerships() {
 
   return (
     <div>
-      <PageHeader title="Partnerships" description="Track local business partnerships to grow your customer base together.">
+      <PageHeader title="Partnerships" description="AI-suggested local business partnerships to grow your customer base together.">
         <Button onClick={suggestWithAI} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
           <Sparkles className="w-4 h-4" /> Suggest with AI
         </Button>
@@ -68,10 +100,16 @@ export default function Partnerships() {
         </Button>
       </PageHeader>
 
-      {partnerships.length === 0 ? (
-        <EmptyState icon={Building2} title="No partnerships yet" description="Add a complementary local business for cross-promotion.">
-          <Button onClick={() => setShowDialog(true)} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
-            <Plus className="w-4 h-4" /> Add
+      {aiLoading && (
+        <div className="bg-white rounded-2xl border border-stone-200/80 mb-6">
+          <AILoading message="Finding local partnership opportunities..." />
+        </div>
+      )}
+
+      {partnerships.length === 0 && !aiLoading ? (
+        <EmptyState icon={Building2} title="No partnerships yet" description="Let AI suggest complementary local businesses for cross-promotion.">
+          <Button onClick={suggestWithAI} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
+            <Sparkles className="w-4 h-4" /> Suggest with AI
           </Button>
         </EmptyState>
       ) : (

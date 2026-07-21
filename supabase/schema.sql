@@ -188,6 +188,11 @@ begin
   end loop;
 end $$;
 
+-- ── storage bucket for AI-generated post images ──────────────────────────────
+insert into storage.buckets (id, name, public)
+values ('post-images', 'post-images', true)
+on conflict (id) do nothing;
+
 -- ── updated_at auto-touch trigger ────────────────────────────────────────────
 create or replace function public.touch_updated_at()
 returns trigger language plpgsql as $$

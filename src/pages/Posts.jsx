@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Post } from '@/api/entities';
+import { invokeLLM, generateImage } from '@/api/ai';
 import { MobileSheetSelect } from '@/components/MobileSheetSelect';
 import { Plus, Sparkles, Instagram, Trash2, Calendar, ImageIcon } from 'lucide-react';
-import { PageHeader, EmptyState, LoadingSpinner, StatusBadge } from '@/components/shared';
+import { PageHeader, EmptyState, LoadingSpinner, StatusBadge, AILoading } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,6 +20,7 @@ const POST_TYPES = ['Promotion', 'Product', 'Story', 'Educational', 'Community']
 export default function Posts() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [aiLoading, setAiLoading] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const isAIDialogOpen = searchParams.get('action') === 'ai';
   const isEditDialogOpen = searchParams.get('action') === 'add' || !!searchParams.get('edit');
@@ -42,11 +44,43 @@ export default function Posts() {
     setLoading(false);
   }
 
-  function generateWithAI() {
-    toast({
-      title: 'AI generation coming soon',
-      description: 'Connect an LLM API key via a Supabase Edge Function to enable AI-written posts. For now, use "Add Post" to write one manually.',
-    });
+  async function generateWithAI() {
+    setAiLoading(true);
+    try {
+      const prompt = `You are a social media expert for a small local business. Create an engaging Instagram post about: "${aiTopic}". Post type: ${aiType}. Make it warm, authentic, and engaging with a clear call to action. End with 5-8 relevant hashtags.`;
+
+      const [llmResult, imageUrl] = await Promise.all([
+        invokeLLM({
+          prompt,
+          jsonSchema: {
+            type: 'object',
+            properties: { caption: { type: 'string' }, hashtags: { type: 'string' } },
+            required: ['caption', 'hashtags'],
+          },
+        }),
+        generateImage({
+          prompt: `Instagram post image for a small local business: ${aiTopic}. Style: warm, inviting, professional, natural lighting, high quality.`,
+        }),
+      ]);
+
+      const post = await Post.create({
+        caption: llmResult.caption,
+        hashtags: llmResult.hashtags,
+        image_url: imageUrl,
+        status: 'Draft',
+        ai_generated: true,
+        post_type: aiType,
+        platform: 'Instagram',
+      });
+
+      setPosts((prev) => [post, ...prev]);
+      setSearchParams({}, { replace: true });
+      setAiTopic('');
+      toast({ title: 'Post generated!', description: 'Your AI-created post is saved as a draft.' });
+    } catch (e) {
+      toast({ title: 'Generation failed', description: e?.message || 'Something went wrong with AI generation.', variant: 'destructive' });
+    }
+    setAiLoading(false);
   }
 
   function openAdd() {
@@ -97,7 +131,7 @@ export default function Posts() {
 
   return (
     <div>
-      <PageHeader title="Social Posts" description="Plan and track your Instagram posts in one place.">
+      <PageHeader title="Social Posts" description="AI-crafted Instagram posts — done for you. Generate, edit, and schedule in one place.">
         <div className="flex gap-2">
           <Button variant="outline" onClick={openAdd} className="gap-2">
             <Plus className="w-4 h-4" /> Add Post
@@ -128,11 +162,11 @@ export default function Posts() {
         <EmptyState
           icon={Instagram}
           title="No posts yet"
-          description="Add your first Instagram post to start planning your content."
+          description="Let AI create your first Instagram post — just tell us what it's about."
         >
-          <Button onClick={openAdd} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
-            <Plus className="w-4 h-4" />
-            Add Post
+          <Button onClick={() => setSearchParams({ action: 'ai' })} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
+            <Sparkles className="w-4 h-4" />
+            Generate with AI
           </Button>
         </EmptyState>
       ) : (
@@ -184,39 +218,45 @@ export default function Posts() {
 
       <Dialog open={isAIDialogOpen} onOpenChange={(open) => { if (!open) setSearchParams({}, { replace: true }); }}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-teal-600" /> Generate Post with AI
-            </DialogTitle>
-            <DialogDescription>Tell us what your post is about and AI will create the caption, hashtags, and image.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <Label>What's the post about?</Label>
-              <Textarea
-                value={aiTopic}
-                onChange={(e) => setAiTopic(e.target.value)}
-                placeholder="e.g., 20% off all coffee this Friday, new summer menu launch, customer spotlight..."
-                className="mt-1.5"
-                rows={3}
-              />
-            </div>
-            <div>
-              <Label>Post type</Label>
-              <MobileSheetSelect
-                value={aiType}
-                onValueChange={setAiType}
-                options={POST_TYPES}
-                triggerClassName="mt-1.5"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSearchParams({}, { replace: true })}>Cancel</Button>
-            <Button onClick={generateWithAI} disabled={!aiTopic.trim()} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
-              <Sparkles className="w-4 h-4" /> Generate
-            </Button>
-          </DialogFooter>
+          {aiLoading ? (
+            <AILoading message="Creating your post..." />
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-teal-600" /> Generate Post with AI
+                </DialogTitle>
+                <DialogDescription>Tell us what your post is about and AI will create the caption, hashtags, and image.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div>
+                  <Label>What's the post about?</Label>
+                  <Textarea
+                    value={aiTopic}
+                    onChange={(e) => setAiTopic(e.target.value)}
+                    placeholder="e.g., 20% off all coffee this Friday, new summer menu launch, customer spotlight..."
+                    className="mt-1.5"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <Label>Post type</Label>
+                  <MobileSheetSelect
+                    value={aiType}
+                    onValueChange={setAiType}
+                    options={POST_TYPES}
+                    triggerClassName="mt-1.5"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setSearchParams({}, { replace: true })}>Cancel</Button>
+                <Button onClick={generateWithAI} disabled={!aiTopic.trim()} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
+                  <Sparkles className="w-4 h-4" /> Generate
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
