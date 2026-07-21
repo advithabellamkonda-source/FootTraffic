@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Outlet, NavLink, Link } from 'react-router-dom';
-import { Home as HomeIcon, Instagram, Users, Tag, Star, BarChart3, Building2, Menu, X, Flower2, Sparkles, Mail, CreditCard, LogOut } from 'lucide-react';
+import { Home as HomeIcon, Instagram, Users, Tag, Star, BarChart3, Building2, Menu, X, Sparkles, Mail, CreditCard, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import logoMark from '@/assets/foottraffic-mark.png';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/AuthContext';
 import BottomTabBar from '@/components/BottomTabBar';
@@ -25,12 +26,9 @@ function SidebarContent({ onNavigate }) {
   return (
     <div className="flex flex-col h-full">
       <div className="px-5 py-5 flex items-center gap-2.5">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#2f5d45] to-[#1c3a2b] flex items-center justify-center shadow-sm">
-          <Flower2 className="w-5 h-5 text-amber-300" />
-        </div>
+        <img src={logoMark} alt="FootTraffic" className="w-9 h-9 rounded-xl object-cover shadow-sm" />
         <div>
-          <p className="font-display font-semibold text-stone-900 text-base leading-tight" style={{ fontVariationSettings: "'opsz' 16" }}>Moody Café</p>
-          <p className="text-[11px] text-stone-400 leading-tight">Rice University</p>
+          <p className="font-display font-semibold text-stone-900 text-base leading-tight" style={{ fontVariationSettings: "'opsz' 16" }}>FootTraffic</p>
         </div>
       </div>
 
@@ -112,8 +110,8 @@ export default function Layout() {
             <Menu className="w-5 h-5 text-stone-600" />
           </button>
           <div className="flex items-center gap-2">
-            <Flower2 className="w-5 h-5 text-[#2f5d45]" />
-            <span className="font-display font-semibold text-stone-900 text-[15px]" style={{ fontVariationSettings: "'opsz' 16" }}>Moody Café</span>
+            <img src={logoMark} alt="FootTraffic" className="w-7 h-7 rounded-lg object-cover" />
+            <span className="font-display font-semibold text-stone-900 text-[15px]" style={{ fontVariationSettings: "'opsz' 16" }}>FootTraffic</span>
           </div>
           <div className="w-9" />
         </header>
