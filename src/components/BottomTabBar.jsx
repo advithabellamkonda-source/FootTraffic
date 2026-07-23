@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Home as HomeIcon, Instagram, Users, Star, Settings as SettingsIcon } from 'lucide-react';
+import { Home as HomeIcon, Instagram, Users, Star, User as UserIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const tabs = [
@@ -7,7 +7,7 @@ const tabs = [
   { to: '/posts', label: 'Posts', icon: Instagram },
   { to: '/customers', label: 'Customers', icon: Users },
   { to: '/reviews', label: 'Reviews', icon: Star },
-  { to: '/settings', label: 'Settings', icon: SettingsIcon },
+  { to: '/settings', label: 'Account', icon: UserIcon },
 ];
 
 export default function BottomTabBar() {

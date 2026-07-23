@@ -68,7 +68,7 @@ export default function Settings() {
 
   return (
     <div>
-      <PageHeader title="Settings" description="Manage your account, subscription and preferences." />
+      <PageHeader title="Account" description="Manage your business profile, subscription and account." />
 
       <div className="bg-white rounded-2xl border border-stone-200/80 p-5 mb-6">
         <div className="flex items-center gap-4 mb-5">

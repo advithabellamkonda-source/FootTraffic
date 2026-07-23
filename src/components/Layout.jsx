@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { Outlet, NavLink, Link } from 'react-router-dom';
-import { Home as HomeIcon, Instagram, Users, Tag, Star, BarChart3, Building2, Menu, X, Sparkles, Mail, CreditCard, LogOut } from 'lucide-react';
+import { Home as HomeIcon, Instagram, Users, Tag, Star, BarChart3, Building2, Menu, X, Sparkles, Mail, CreditCard, User as UserIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import logoMark from '@/assets/foottraffic-mark.png';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/lib/AuthContext';
 import BottomTabBar from '@/components/BottomTabBar';
 import PullToRefresh from '@/components/PullToRefresh';
 import PageTransition from '@/components/PageTransition';
@@ -18,11 +17,11 @@ const navItems = [
 { to: '/analytics', label: 'Analytics', icon: BarChart3 },
 { to: '/partnerships', label: 'Partnerships', icon: Building2 },
 { to: '/newsletters', label: 'Newsletters', icon: Mail },
-{ to: '/pricing', label: 'Plans', icon: CreditCard }];
+{ to: '/pricing', label: 'Plans', icon: CreditCard },
+{ to: '/settings', label: 'Account', icon: UserIcon }];
 
 
 function SidebarContent({ onNavigate }) {
-  const { user, logout } = useAuth();
   return (
     <div className="flex flex-col h-full">
       <div className="px-5 py-5 flex items-center gap-2.5">
@@ -65,13 +64,6 @@ function SidebarContent({ onNavigate }) {
             <Link to="/pricing">Upgrade Plan</Link>
           </Button>
         </div>
-        <button
-          onClick={() => {logout();onNavigate?.();}}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-stone-500 hover:bg-stone-100 transition-colors">
-          
-          <LogOut className="w-[18px] h-[18px]" />
-          <span className="truncate">{user?.email ? `Log out (${user.email})` : 'Log out'}</span>
-        </button>
       </div>
     </div>);
 
