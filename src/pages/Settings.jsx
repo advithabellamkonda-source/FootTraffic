@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-import { Mail, CreditCard, User, Trash2, AlertTriangle, LogOut, Loader2 } from 'lucide-react';
+import { Mail, CreditCard, User, Trash2, AlertTriangle, LogOut, Loader2, Pencil } from 'lucide-react';
 import { PageHeader, LoadingSpinner } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 
 const OWNED_TABLES = ['customers', 'posts', 'newsletters', 'reviews', 'promotions', 'ad_campaigns', 'partnerships'];
@@ -30,6 +31,10 @@ export default function Settings() {
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editBusinessName, setEditBusinessName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -42,6 +47,41 @@ export default function Settings() {
     }
     load();
   }, [user]);
+
+  function openEditProfile() {
+    setEditBusinessName(profile?.business_name || '');
+    setEditEmail(user?.email || '');
+    setShowEditDialog(true);
+  }
+
+  async function saveProfile() {
+    setSavingProfile(true);
+    try {
+      if (editBusinessName !== (profile?.business_name || '')) {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ business_name: editBusinessName })
+          .eq('id', user.id);
+        if (error) throw error;
+        setProfile((prev) => ({ ...prev, business_name: editBusinessName }));
+      }
+
+      if (editEmail !== user.email) {
+        const { error } = await supabase.auth.updateUser({ email: editEmail });
+        if (error) throw error;
+        toast({
+          title: 'Confirm your new email',
+          description: 'Check your inbox for a confirmation link to finish changing your email — it won\'t update until you confirm.',
+        });
+      } else {
+        toast({ title: 'Profile updated' });
+      }
+      setShowEditDialog(false);
+    } catch (e) {
+      toast({ title: 'Update failed', description: e.message, variant: 'destructive' });
+    }
+    setSavingProfile(false);
+  }
 
   async function handleLogout() {
     setLogoutLoading(true);
@@ -71,17 +111,22 @@ export default function Settings() {
       <PageHeader title="Account" description="Manage your business profile, subscription and account." />
 
       <div className="bg-white rounded-2xl border border-stone-200/80 p-5 mb-6">
-        <div className="flex items-center gap-4 mb-5">
-          <div className="w-14 h-14 rounded-full bg-teal-50 text-teal-700 flex items-center justify-center text-xl font-bold">
-            {profile?.business_name?.charAt(0)?.toUpperCase() || profile?.full_name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
+        <div className="flex items-start justify-between gap-4 mb-5">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-teal-50 text-teal-700 flex items-center justify-center text-xl font-bold">
+              {profile?.business_name?.charAt(0)?.toUpperCase() || profile?.full_name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
+            </div>
+            <div>
+              <h3 className="font-semibold text-stone-900 text-lg">{profile?.business_name || profile?.full_name || 'User'}</h3>
+              <p className="text-sm text-stone-500 flex items-center gap-1">
+                <Mail className="w-3.5 h-3.5" /> {user?.email || 'No email'}
+              </p>
+              <p className="text-xs text-teal-600 mt-1 font-medium uppercase tracking-wide">{profile?.role || 'user'}</p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-semibold text-stone-900 text-lg">{profile?.business_name || profile?.full_name || 'User'}</h3>
-            <p className="text-sm text-stone-500 flex items-center gap-1">
-              <Mail className="w-3.5 h-3.5" /> {user?.email || 'No email'}
-            </p>
-            <p className="text-xs text-teal-600 mt-1 font-medium uppercase tracking-wide">{profile?.role || 'user'}</p>
-          </div>
+          <Button variant="ghost" size="sm" className="gap-2 flex-shrink-0" onClick={openEditProfile}>
+            <Pencil className="w-4 h-4" /> Edit
+          </Button>
         </div>
 
         <div className="border-t border-stone-100 pt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -130,6 +175,36 @@ export default function Settings() {
           <Trash2 className="w-4 h-4" /> Delete Account
         </Button>
       </div>
+
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Profile</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Business Name</Label>
+              <Input value={editBusinessName} onChange={(e) => setEditBusinessName(e.target.value)} className="mt-1.5" placeholder="Moody Café" />
+            </div>
+            <div>
+              <Label>Email</Label>
+              <Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="mt-1.5" placeholder="you@example.com" />
+              <p className="text-xs text-stone-400 mt-1">Changing your email requires confirming a link sent to the new address.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>Cancel</Button>
+            <Button
+              onClick={saveProfile}
+              disabled={savingProfile || !editBusinessName.trim() || !editEmail.trim()}
+              className="bg-teal-600 hover:bg-teal-700 text-white gap-2"
+            >
+              {savingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
