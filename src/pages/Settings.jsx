@@ -73,10 +73,10 @@ export default function Settings() {
       <div className="bg-white rounded-2xl border border-stone-200/80 p-5 mb-6">
         <div className="flex items-center gap-4 mb-5">
           <div className="w-14 h-14 rounded-full bg-teal-50 text-teal-700 flex items-center justify-center text-xl font-bold">
-            {profile?.full_name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
+            {profile?.business_name?.charAt(0)?.toUpperCase() || profile?.full_name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
           </div>
           <div>
-            <h3 className="font-semibold text-stone-900 text-lg">{profile?.full_name || 'User'}</h3>
+            <h3 className="font-semibold text-stone-900 text-lg">{profile?.business_name || profile?.full_name || 'User'}</h3>
             <p className="text-sm text-stone-500 flex items-center gap-1">
               <Mail className="w-3.5 h-3.5" /> {user?.email || 'No email'}
             </p>
